@@ -1,0 +1,8 @@
+.idea/
+target/
+*.class
+*.jar
+*.log
+postgres_orchestrator_data/
+rabbitmq_data/
+rabbitmq_logs/

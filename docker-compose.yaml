@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL service for orchestrator
+  postgres-orchestrator:
+    image: postgres:15
+    container_name: postgres-container-orchestrator
+    environment:
+      POSTGRES_DB: inventory_management
+      POSTGRES_USER: bosch
+      POSTGRES_PASSWORD: very_secret
+    volumes:
+      - ./postgres_orchestrator_data:/var/lib/postgresql/data
+      - ./helpers/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bosch -d inventory_management -h localhost"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  # RabbitMQ service with management plugin
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-container
+    environment:
+      RABBITMQ_DEFAULT_USER: bosch
+      RABBITMQ_DEFAULT_PASS: very_secret
+    volumes:
+      - ./rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq_logs:/var/log/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  # Event producer service
+  event_producer:
+    build:
+      context: ./producer
+    container_name: event-producer
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+
+  # Event consumer service
+  event_consumer:
+    build:
+      context: ./consumer
+    container_name: event-consumer
+    depends_on:
+      - rabbitmq
+      - postgres-orchestrator
+    networks:
+      - backend
+
+networks:
+  # Define the backend network for services to communicate
+  backend:
+    driver: bridge
